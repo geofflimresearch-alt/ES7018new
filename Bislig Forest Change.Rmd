@@ -1,0 +1,583 @@
+---
+title: "Bislig Forest%Change (2016 v 2025)"
+author: "Geoff Lim"
+date: "2025-09-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Libraries
+
+```{r}
+# Core packages for raster and spatial data
+library(terra)      # Modern replacement for raster
+library(sf)         # For vector data (if needed)
+
+```
+```{r}
+setwd("/Users/Toki_Mac/data/PICOP")
+getwd()
+list.files()
+
+```
+```{r}
+# Load required package
+library(terra)
+
+# Load NDVI TIFFs
+ndvi_2023 <- rast("(Good)2023-09-05-00_00_2023-10-05-23_59_Sentinel-2_L2A_NDVI.tiff")
+ndvi_2024 <- rast("(Good)2024-09-04-00_00_2024-10-04-23_59_Sentinel-2_L2A_NDVI.tiff")
+
+summary(ndvi_2023)
+```
+
+
+
+
+```{r}
+# Load required package
+library(terra)
+
+# Load NDVI TIFFs
+ndvi_2023 <- rast("(Good)2023-09-05-00_00_2023-10-05-23_59_Sentinel-2_L2A_NDVI.tiff")
+ndvi_2024 <- rast("(Good)2024-09-04-00_00_2024-10-04-23_59_Sentinel-2_L2A_NDVI.tiff")
+
+# Inspect value ranges
+summary(ndvi_2023)
+summary(ndvi_2024)
+
+# Normalize if values are scaled (e.g., 0–10000)
+ndvi_2023_norm <- ndvi_2023 / 10000
+ndvi_2024_norm <- ndvi_2024 / 10000
+
+# Apply vegetation-friendly color palette
+plot(ndvi_2023_norm, col = terrain.colors(20), main = "NDVI 2023 (Normalized)")
+plot(ndvi_2024_norm, col = terrain.colors(20), main = "NDVI 2024 (Normalized)")
+
+# Optional: mask low NDVI values (e.g., < 0)
+ndvi_2023_clean <- classify(ndvi_2023_norm, rcl = matrix(c(-1, 0, NA), ncol = 3, byrow = TRUE))
+ndvi_2024_clean <- classify(ndvi_2024_norm, rcl = matrix(c(-1, 0, NA), ncol = 3, byrow = TRUE))
+
+#  Plot cleaned rasters
+plot(ndvi_2023_clean, col = terrain.colors(20), main = "NDVI 2023 (Cleaned)")
+plot(ndvi_2024_clean, col = terrain.colors(20), main = "NDVI 2024 (Cleaned)")
+
+
+```
+
+#Computing & plotting NDVI 2025
+```{r}
+# Load required libraries
+library(terra)
+library(sf)
+
+# ─────────────────────────────────────────────────────────────
+# 1. Define Area of Interest (AOI) in WGS84
+# ─────────────────────────────────────────────────────────────
+aoi_wgs <- ext(125.9641, 126.4167, 7.8266, 8.4938)  # xmin, xmax, ymin, ymax
+aoi_vect <- vect(aoi_wgs, crs = "EPSG:4326")        # Create vector AOI
+
+# ─────────────────────────────────────────────────────────────
+# 2. Load Sentinel-2 Bands
+# ─────────────────────────────────────────────────────────────
+red <- rast("T51PZK_20250902T021231_B04_10m.jp2")   # Red band
+nir <- rast("T51PZK_20250902T021231_B08_10m.jp2")   # NIR band
+
+# Optional: Load Scene Classification Layer (SCL) for cloud masking
+# scl <- rast("T51PZK_20250902T021231_SCL_20m.jp2")  # Uncomment if available
+
+# ─────────────────────────────────────────────────────────────
+# 3. Compute NDVI
+# ─────────────────────────────────────────────────────────────
+ndvi <- (nir - red) / (nir + red)
+names(ndvi) <- "NDVI"
+
+# ─────────────────────────────────────────────────────────────
+# 4. Reproject AOI to match raster CRS
+# ─────────────────────────────────────────────────────────────
+aoi_utm <- project(aoi_vect, crs(ndvi))             # Match CRS for cropping
+
+# ─────────────────────────────────────────────────────────────
+# 5. Crop NDVI to AOI
+# ─────────────────────────────────────────────────────────────
+ndvi_crop <- crop(ndvi, aoi_utm)
+
+# ─────────────────────────────────────────────────────────────
+# 6. Optional Cloud Masking (if SCL available)
+# ─────────────────────────────────────────────────────────────
+# If SCL is available, mask out clouds, shadows, haze
+# Valid classes: 4 = vegetation, 5 = bare soil, 6 = water, 7 = unclassified, 11 = snow/ice
+# valid_mask <- scl %in% c(4, 5, 6, 7, 11)
+# ndvi_clean <- mask(ndvi_crop, valid_mask, maskvalue = FALSE)
+
+# If no SCL available, skip masking
+ndvi_clean <- ndvi_crop
+
+# ─────────────────────────────────────────────────────────────
+# 7. Export Cleaned NDVI Raster
+# ─────────────────────────────────────────────────────────────
+writeRaster(ndvi_clean, "ndvi_2025.tif", overwrite = TRUE)
+
+# ─────────────────────────────────────────────────────────────
+# 8. Visualize (Optional)
+# ─────────────────────────────────────────────────────────────
+plot(ndvi_clean, col = rev(terrain.colors(100)), main = "NDVI 2025")
+
+
+```
+#Computing & plotting NDVI 2016
+
+```{r}
+# Load required libraries
+library(terra)
+library(sf)
+
+# ─────────────────────────────────────────────────────────────
+# 1. Define Area of Interest (AOI) in WGS84
+# ─────────────────────────────────────────────────────────────
+aoi_wgs <- ext(125.9641, 126.4167, 7.8266, 8.4938)  # xmin, xmax, ymin, ymax
+aoi_vect <- vect(aoi_wgs, crs = "EPSG:4326")        # Create vector AOI
+
+# ─────────────────────────────────────────────────────────────
+# 2. Load Sentinel-2 Bands (2016)
+# ─────────────────────────────────────────────────────────────
+red <- rast("T51PZK_20160721T021352_B04_10m.jp2")   # Red band
+nir <- rast("T51PZK_20160721T021352_B08_10m.jp2")   # NIR band
+
+# Optional: Load Scene Classification Layer (SCL) for cloud masking
+# scl <- rast("T51PZK_20160721T021352_SCL_20m.jp2")  # Uncomment if available
+
+# ─────────────────────────────────────────────────────────────
+# 3. Compute NDVI
+# ─────────────────────────────────────────────────────────────
+ndvi <- (nir - red) / (nir + red)
+names(ndvi) <- "NDVI"
+
+# ─────────────────────────────────────────────────────────────
+# 4. Reproject AOI to match raster CRS
+# ─────────────────────────────────────────────────────────────
+aoi_utm <- project(aoi_vect, crs(ndvi))             # Match CRS for cropping
+
+# ─────────────────────────────────────────────────────────────
+# 5. Crop NDVI to AOI
+# ─────────────────────────────────────────────────────────────
+ndvi_crop <- crop(ndvi, aoi_utm)
+
+# ─────────────────────────────────────────────────────────────
+# 6. Optional Cloud Masking (if SCL available)
+# ─────────────────────────────────────────────────────────────
+# If SCL is available, mask out clouds, shadows, haze
+# Valid classes: 4 = vegetation, 5 = bare soil, 6 = water, 7 = unclassified, 11 = snow/ice
+# valid_mask <- scl %in% c(4, 5, 6, 7, 11)
+# ndvi_clean <- mask(ndvi_crop, valid_mask, maskvalue = FALSE)
+
+# If no SCL available, skip masking
+ndvi_clean <- ndvi_crop
+
+# ─────────────────────────────────────────────────────────────
+# 7. Export Cleaned NDVI Raster
+# ─────────────────────────────────────────────────────────────
+writeRaster(ndvi_clean, "ndvi_2016.tif", overwrite = TRUE)
+
+# ─────────────────────────────────────────────────────────────
+# 8. Visualize (Optional)
+# ─────────────────────────────────────────────────────────────
+plot(ndvi_clean, col = rev(terrain.colors(100)), main = "NDVI 2016")
+
+```
+
+#Analyse Forest Loss between 2016 and 2025
+```{r}
+# Load libraries
+library(terra)
+library(sf)
+
+# ─────────────────────────────────────────────────────────────
+# 1. Stack NDVI rasters (2016 and 2025)
+# ─────────────────────────────────────────────────────────────
+ndvi_stack <- rast(c("ndvi_2016.tif", "ndvi_2025.tif"))
+
+# ─────────────────────────────────────────────────────────────
+# 2. Calculate NDVI change
+# ─────────────────────────────────────────────────────────────
+ndvi_diff <- ndvi_stack[[2]] - ndvi_stack[[1]]
+plot(ndvi_diff, main = "NDVI Change (2025 - 2016)")
+
+# ─────────────────────────────────────────────────────────────
+# 3. Threshold for forest loss
+# ─────────────────────────────────────────────────────────────
+loss_mask <- ndvi_diff < -0.2
+plot(loss_mask, main = "Forest Loss Mask")
+
+# ─────────────────────────────────────────────────────────────
+# 4. Convert loss mask to sf polygons
+# ─────────────────────────────────────────────────────────────
+loss_polygons <- as.polygons(loss_mask, dissolve = TRUE)
+loss_sf <- st_as_sf(loss_polygons)
+
+# Optional: export for mapping
+# st_write(loss_sf, "forest_loss_2016_2025.geojson", delete_dsn = TRUE)
+
+```
+# Quantifying the Forest%Change using NDVI > 0.6
+```{r}
+# Load required libraries
+library(terra)
+library(sf)
+library(dplyr)
+
+# ─────────────────────────────────────────────────────────────
+# 1. Load NDVI Rasters
+# ─────────────────────────────────────────────────────────────
+ndvi_2016 <- rast("ndvi_2016.tif")
+ndvi_2025 <- rast("ndvi_2025.tif")
+
+# ─────────────────────────────────────────────────────────────
+# 2. Define Forest Threshold
+# ─────────────────────────────────────────────────────────────
+# NDVI > 0.6 is considered forested
+forest_2016 <- ndvi_2016 > 0.6
+forest_2025 <- ndvi_2025 > 0.6
+
+# ─────────────────────────────────────────────────────────────
+# 3. Compute Forest Loss Mask
+# ─────────────────────────────────────────────────────────────
+loss_mask <- forest_2016 & !forest_2025
+names(loss_mask) <- "Forest_Loss"
+
+# ─────────────────────────────────────────────────────────────
+# 4. Calculate Areas (in hectares)
+# ─────────────────────────────────────────────────────────────
+pixel_area_ha <- 0.01  # 10m x 10m pixels = 0.01 ha
+
+forest_2016_area <- global(forest_2016, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+forest_2025_area <- global(forest_2025, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+forest_loss_area <- global(loss_mask, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+percent_loss <- (forest_loss_area / forest_2016_area) * 100
+
+# ─────────────────────────────────────────────────────────────
+# 5. Output Summary Table (Peer-Review Format)
+# ─────────────────────────────────────────────────────────────
+forest_summary <- tibble(
+  Year_Initial = 2016,
+  Year_Final = 2025,
+  Forest_Area_2016_ha = round(forest_2016_area, 2),
+  Forest_Area_2025_ha = round(forest_2025_area, 2),
+  Forest_Loss_ha = round(forest_loss_area, 2),
+  Percent_Forest_Loss = round(percent_loss, 2)
+)
+
+print(forest_summary)
+
+# Optional: Export as CSV or LaTeX-ready table
+write.csv(forest_summary, "forest_loss_summary.csv", row.names = FALSE)
+
+
+```
+# Quantifying the Forest%Change using NDVI > 0.8
+```{r}
+# Load required libraries
+library(terra)
+library(sf)
+library(dplyr)
+
+# ─────────────────────────────────────────────────────────────
+# 1. Load NDVI Rasters
+# ─────────────────────────────────────────────────────────────
+ndvi_2016 <- rast("ndvi_2016.tif")
+ndvi_2025 <- rast("ndvi_2025.tif")
+
+# Ensure rasters are aligned
+ndvi_2025 <- resample(ndvi_2025, ndvi_2016)
+
+# ─────────────────────────────────────────────────────────────
+# 2. Define Forest Threshold (NDVI > 0.8)
+# ─────────────────────────────────────────────────────────────
+forest_2016 <- ndvi_2016 > 0.8
+forest_2025 <- ndvi_2025 > 0.8
+
+# ─────────────────────────────────────────────────────────────
+# 3. Compute Forest Loss Mask
+# ─────────────────────────────────────────────────────────────
+loss_mask <- forest_2016 & !forest_2025
+names(loss_mask) <- "Forest_Loss"
+
+# ─────────────────────────────────────────────────────────────
+# 4. Calculate Areas (in hectares)
+# ─────────────────────────────────────────────────────────────
+pixel_area_ha <- 0.01  # 10m x 10m pixels = 0.01 ha
+
+forest_2016_area <- global(forest_2016, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+forest_2025_area <- global(forest_2025, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+forest_loss_area <- global(loss_mask, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+percent_loss <- ifelse(forest_2016_area > 0, (forest_loss_area / forest_2016_area) * 100, NA)
+
+# ─────────────────────────────────────────────────────────────
+# 5. Output Summary Table (Peer-Review Format)
+# ─────────────────────────────────────────────────────────────
+forest_summary <- tibble(
+  Year_Initial = 2016,
+  Year_Final = 2025,
+  Forest_Area_2016_ha = round(forest_2016_area, 2),
+  Forest_Area_2025_ha = round(forest_2025_area, 2),
+  Forest_Loss_ha = round(forest_loss_area, 2),
+  Percent_Forest_Loss = round(percent_loss, 2)
+)
+
+print(forest_summary)
+
+# Optional: Export as CSV or LaTeX-ready table
+write.csv(forest_summary, "forest_loss_summary_ndvi_0.8.csv", row.names = FALSE)
+
+```
+# Quantifying forest % change across NDVI thresholds 0.6 to 0.79
+
+```{r}
+# Load libraries
+library(terra)
+library(sf)
+library(dplyr)
+library(ggplot2)
+
+# ─────────────────────────────────────────────────────────────
+# 1. Load NDVI Rasters and Align
+# ─────────────────────────────────────────────────────────────
+ndvi_2016 <- rast("ndvi_2016.tif")
+ndvi_2025 <- rast("ndvi_2025.tif")
+ndvi_2025 <- resample(ndvi_2025, ndvi_2016)  # Ensure alignment
+
+# ─────────────────────────────────────────────────────────────
+# 2. Define Thresholds and Initialize Results Table
+# ─────────────────────────────────────────────────────────────
+thresholds <- seq(0.60, 0.79, by = 0.01)
+pixel_area_ha <- 0.01  # 10m x 10m pixels
+
+results <- tibble(
+  NDVI_Threshold = numeric(),
+  Forest_Area_2016_ha = numeric(),
+  Forest_Area_2025_ha = numeric(),
+  Forest_Loss_ha = numeric(),
+  Percent_Forest_Loss = numeric()
+)
+
+# ─────────────────────────────────────────────────────────────
+# 3. Loop Through Thresholds and Compute Forest Loss
+# ─────────────────────────────────────────────────────────────
+for (t in thresholds) {
+  forest_2016 <- ndvi_2016 > t
+  forest_2025 <- ndvi_2025 > t
+  loss_mask <- forest_2016 & !forest_2025
+  
+  area_2016 <- global(forest_2016, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+  area_2025 <- global(forest_2025, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+  area_loss <- global(loss_mask, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+  percent_loss <- ifelse(area_2016 > 0, (area_loss / area_2016) * 100, NA)
+  
+  results <- bind_rows(results, tibble(
+    NDVI_Threshold = t,
+    Forest_Area_2016_ha = round(area_2016, 2),
+    Forest_Area_2025_ha = round(area_2025, 2),
+    Forest_Loss_ha = round(area_loss, 2),
+    Percent_Forest_Loss = round(percent_loss, 2)
+  ))
+}
+
+# ─────────────────────────────────────────────────────────────
+# 4. Visualize Sensitivity Analysis (Safe for Script Mode)
+# ─────────────────────────────────────────────────────────────
+png("forest_loss_sensitivity_plot.png", width = 800, height = 600)
+ggplot(results, aes(x = NDVI_Threshold, y = Percent_Forest_Loss)) +
+  geom_line(color = "darkgreen", size = 1.2) +
+  geom_point(color = "forestgreen", size = 2) +
+  labs(
+    title = "Sensitivity of Forest Loss to NDVI Threshold",
+    x = "NDVI Threshold",
+    y = "Percent Forest Loss (2016–2025)"
+  ) +
+  theme_minimal(base_size = 14)
+dev.off()
+
+# ─────────────────────────────────────────────────────────────
+# 5. Visualize Spatial Forest Loss at Selected Thresholds
+# ─────────────────────────────────────────────────────────────
+selected_thresholds <- c(0.60, 0.70, 0.79)
+
+png("forest_loss_masks.png", width = 1800, height = 600)
+par(mfrow = c(1, 3))
+for (t in selected_thresholds) {
+  forest_2016 <- ndvi_2016 > t
+  forest_2025 <- ndvi_2025 > t
+  loss_mask <- forest_2016 & !forest_2025
+  plot(loss_mask, main = paste("Loss Mask (NDVI >", t, ")"), col = c("transparent", "red"))
+}
+par(mfrow = c(1, 1))
+dev.off()
+
+# ─────────────────────────────────────────────────────────────
+# 6. Format Table for Manuscript Inclusion
+# ─────────────────────────────────────────────────────────────
+results_formatted <- results %>%
+  rename(
+    `NDVI Threshold` = NDVI_Threshold,
+    `Forest Area 2016 (ha)` = Forest_Area_2016_ha,
+    `Forest Area 2025 (ha)` = Forest_Area_2025_ha,
+    `Forest Loss (ha)` = Forest_Loss_ha,
+    `Percent Forest Loss (%)` = Percent_Forest_Loss
+  )
+
+print(results_formatted)
+
+# Optional: Export as CSV or LaTeX-ready table
+# write.csv(results_formatted, "forest_loss_sensitivity_table.csv", row.names = FALSE)
+
+
+```
+# Visualising the forest %change
+
+#Prelimnary - install from github 'rnaturalearthhires'
+```{r}
+remotes::install_github("ropensci/rnaturalearthhires")
+
+```
+# Visualisation script
+```{r}
+# ─────────────────────────────────────────────────────────────
+# 0. Install Required Packages (Run Once If Needed)
+# ─────────────────────────────────────────────────────────────
+# install.packages(c("terra", "sf", "dplyr", "ggplot2", "rnaturalearth", "rnaturalearthdata", "remotes", "elevatr"))
+# remotes::install_github("ropensci/rnaturalearthhires")
+
+# ─────────────────────────────────────────────────────────────
+# 1. Load Libraries
+# ─────────────────────────────────────────────────────────────
+library(terra)
+library(sf)
+library(dplyr)
+library(ggplot2)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(elevatr)
+
+# ─────────────────────────────────────────────────────────────
+# 2. Load NDVI Rasters and Align
+# ─────────────────────────────────────────────────────────────
+ndvi_2016 <- rast("ndvi_2016.tif")
+ndvi_2025 <- rast("ndvi_2025.tif")
+ndvi_2025 <- resample(ndvi_2025, ndvi_2016)
+
+# ─────────────────────────────────────────────────────────────
+# 3. Load Admin Boundaries for Mindanao
+# ─────────────────────────────────────────────────────────────
+admin <- ne_states(country = "Philippines", returnclass = "sf")
+mindanao_provinces <- c("Bukidnon", "Agusan del Sur", "Surigao del Sur", "Cotabato",
+                        "Sultan Kudarat", "Lanao del Sur", "Zamboanga del Sur", "Misamis Oriental",
+                        "South Cotabato", "Maguindanao", "Sarangani", "Davao del Sur",
+                        "Davao del Norte", "Davao Occidental", "Davao Oriental", "Compostela Valley")
+admin_mindanao <- admin[admin$name %in% mindanao_provinces, ]
+admin_mindanao <- st_transform(admin_mindanao, crs(ndvi_2016))
+
+# ─────────────────────────────────────────────────────────────
+# 4. Download Elevation for Mindanao
+# ─────────────────────────────────────────────────────────────
+mindanao_bbox <- st_as_sf(st_sfc(st_polygon(list(rbind(
+  c(124.0, 4.5), c(124.0, 9.0), c(126.5, 9.0), c(126.5, 4.5), c(124.0, 4.5)
+))), crs = 4326))
+elevation_raw <- get_elev_raster(locations = mindanao_bbox, z = 9, clip = "locations")
+elevation <- rast(elevation_raw)
+elevation <- resample(elevation, ndvi_2016)
+writeRaster(elevation, "elevation_mindanao_srtm.tif", overwrite = TRUE)
+
+# ─────────────────────────────────────────────────────────────
+# 5. Forest Loss Sensitivity Analysis (NDVI 0.60–0.79)
+# ─────────────────────────────────────────────────────────────
+thresholds <- seq(0.60, 0.79, by = 0.01)
+pixel_area_ha <- 0.01
+results <- tibble()
+
+for (t in thresholds) {
+  forest_2016 <- ndvi_2016 > t
+  forest_2025 <- ndvi_2025 > t
+  loss_mask <- forest_2016 & !forest_2025
+  
+  area_2016 <- global(forest_2016, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+  area_2025 <- global(forest_2025, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+  area_loss <- global(loss_mask, "sum", na.rm = TRUE)[1, 1] * pixel_area_ha
+  percent_loss <- ifelse(area_2016 > 0, (area_loss / area_2016) * 100, NA)
+  
+  results <- bind_rows(results, tibble(
+    NDVI_Threshold = t,
+    Forest_Area_2016_ha = round(area_2016, 2),
+    Forest_Area_2025_ha = round(area_2025, 2),
+    Forest_Loss_ha = round(area_loss, 2),
+    Percent_Forest_Loss = round(percent_loss, 2)
+  ))
+}
+
+# ─────────────────────────────────────────────────────────────
+# 6. Export Forest Loss Mask (NDVI > 0.70)
+# ─────────────────────────────────────────────────────────────
+forest_2016 <- ndvi_2016 > 0.70
+forest_2025 <- ndvi_2025 > 0.70
+loss_mask <- forest_2016 & !forest_2025
+loss_poly <- as.polygons(loss_mask, dissolve = TRUE)
+loss_sf <- st_as_sf(loss_poly)
+st_write(loss_sf, "forest_loss_ndvi_0.70.geojson", delete_dsn = TRUE)
+
+# ─────────────────────────────────────────────────────────────
+# 7. Plot Sensitivity Curve (PNG + PDF)
+# ─────────────────────────────────────────────────────────────
+p1 <- ggplot(results, aes(x = NDVI_Threshold, y = Percent_Forest_Loss)) +
+  geom_line(color = "darkgreen", size = 1.2) +
+  geom_point(color = "forestgreen", size = 2) +
+  labs(
+    title = "Sensitivity of Forest Loss to NDVI Threshold",
+    subtitle = "Forest loss (%) between 2016 and 2025 across NDVI thresholds",
+    x = "NDVI Threshold",
+    y = "Percent Forest Loss",
+    caption = "Sentinel-2 NDVI analysis over Mindanao, Philippines"
+  ) +
+  theme_minimal(base_size = 14)
+
+ggsave("forest_loss_sensitivity_plot.png", plot = p1, width = 8, height = 6, dpi = 300)
+ggsave("forest_loss_sensitivity_plot.pdf", plot = p1, width = 8, height = 6)
+
+# ─────────────────────────────────────────────────────────────
+# 8. Spatial Overlay Plot (NDVI > 0.70, PNG + PDF)
+# ─────────────────────────────────────────────────────────────
+loss_df <- as.data.frame(loss_mask, xy = TRUE)
+elev_df <- as.data.frame(elevation, xy = TRUE)
+names(elev_df)[3] <- "elevation"  # Fix for geom_raster()
+
+p2 <- ggplot() +
+  geom_raster(data = elev_df, aes(x = x, y = y, fill = elevation), alpha = 0.4) +
+  scale_fill_gradientn(colors = terrain.colors(10), name = "Elevation (m)") +
+  geom_sf(data = loss_sf, fill = "red", color = NA, alpha = 0.6) +
+  geom_sf(data = admin_mindanao, fill = NA, color = "black", size = 0.3) +
+  labs(
+    title = "Spatial Distribution of Forest Loss (NDVI > 0.70)",
+    subtitle = "Overlay with elevation and administrative boundaries",
+    caption = "Forest loss derived from Sentinel-2 NDVI (2016–2025) over Mindanao"
+  ) +
+  theme_minimal(base_size = 14)
+
+ggsave("forest_loss_spatial_overlay.png", plot = p2, width = 10, height = 8, dpi = 300)
+ggsave("forest_loss_spatial_overlay.pdf", plot = p2, width = 10, height = 8)
+
+# ─────────────────────────────────────────────────────────────
+# 9. Export Sensitivity Table
+# ─────────────────────────────────────────────────────────────
+results_formatted <- results %>%
+  rename(
+    `NDVI Threshold` = NDVI_Threshold,
+    `Forest Area 2016 (ha)` = Forest_Area_2016_ha,
+    `Forest Area 2025 (ha)` = Forest_Area_2025_ha,
+    `Forest Loss (ha)` = Forest_Loss_ha,
+    `Percent Forest Loss (%)` = Percent_Forest_Loss
+  )
+write.csv(results_formatted, "forest_loss_sensitivity_table.csv", row.names = FALSE)
+
+```
+
+
